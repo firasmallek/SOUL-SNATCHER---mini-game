@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>SOUL SNATCHER</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body { background:#000; display:flex; justify-content:center; align-items:center;
+       min-height:100vh; overflow:hidden; touch-action:none; }
+canvas { display:block; max-width:100vw; max-height:100vh; }
+
+/* ── Touch control buttons ── */
+#touch-ui {
+  display:none;
+  position:fixed; inset:0; pointer-events:none; z-index:999;
+}
+.tbtn {
+  position:absolute; pointer-events:all;
+  border-radius:50%; border:3px solid rgba(255,255,255,0.35);
+  background:rgba(255,255,255,0.10);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; color:rgba(255,255,255,0.7);
+  user-select:none; -webkit-user-select:none;
+  transition:background 0.08s;
+  touch-action:none;
+}
+.tbtn:active, .tbtn.pressed { background:rgba(255,160,0,0.38); border-color:#ffaa00; }
+#btn-left  { width:70px;height:70px; bottom:22px; left:18px; }
+#btn-right { width:70px;height:70px; bottom:22px; left:98px; }
+#btn-jump  { width:76px;height:76px; bottom:18px; right:18px;
+             border-color:rgba(100,200,255,0.5);
+             background:rgba(50,120,200,0.15); font-size:20px; }
+#btn-shoot { width:62px;height:62px; bottom:110px; right:28px;
+             border-color:rgba(80,255,220,0.4);
+             background:rgba(0,180,140,0.12); font-size:16px; }
+#btn-blast { width:62px;height:62px; bottom:110px; right:102px;
+             border-color:rgba(255,100,255,0.45);
+             background:rgba(180,0,200,0.12); font-size:15px; }
+</style>
+</head>
+<body>
+
+<!-- Touch buttons (shown only in phone mode) -->
+<div id="touch-ui">
+  <div class="tbtn" id="btn-left">◀</div>
+  <div class="tbtn" id="btn-right">▶</div>
+  <div class="tbtn" id="btn-jump">JUMP</div>
+  <div class="tbtn" id="btn-shoot">FIRE</div>
+  <div class="tbtn" id="btn-blast">✦</div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+//  SOUL SNATCHER — bilingual, PC + mobile Phaser 3 boss-rush
+// ═══════════════════════════════════════════════════════
+
+const W = 800, H = 500;
+const BOSS_W = 72, BOSS_H = 90;
+
+// ── Global config (set by Menu scene) ──────────────────
+window.CFG = { lang:'en', device:'pc' };
+
+// ── Virtual keys (touch input) ─────────────────────────
+window.VKEYS = { left:false, right:false, jump:false, shoot:false, blast:false };
+
+// ── Translations ───────────────────────────────────────
+const T = {
+  en: {
+    title:      'SOUL SNATCHER',
+    boss_name:  '★  MALPHAS  THE  DEVOURER  ★',
+    choose_lang:'Choose your language',
+    choose_dev: 'How are you playing?',
+    btn_en:     'English',
+    btn_tn:     'Tunisian  تونسي',
+    btn_pc:     '🖥  PC  (Keyboard)',
+    btn_phone:  '📱  Phone  (Touch)',
+    start:      'START  GAME',
+    ctrl_hint:  '← → move   W/Space jump(x2)   Z shoot   X SOUL BLAST — parry pink bullets to charge!',
+    hp:         'HP',
+    soul_lbl:   '✦ SOUL',
+    soul_ready: 'SOUL READY!  press X',
+    phase2:     '⚡ ENRAGED! ⚡',
+    phase3:     '☠ FINAL FORM! ☠',
+    charge:     'CHARGE!!',
+    fire_rain:  '☄ FIRE RAIN! ☄',
+    parry:      '✦  PARRY!  ✦',
+    soul_blast: '✦  SOUL  BLAST!  ✦',
+    sb_float:   'SOUL BLAST!',
+    soul_float: '+SOUL',
+    win_title:  '✦  VICTORY  ✦',
+    win_sub:    'Malphas is defeated!\nHis soul belongs to you now.',
+    lose_title: 'GAME  OVER',
+    lose_sub:   'Consumed by Malphas...\nYour soul is his forever.',
+    restart:    '[  R  ]  to  play  again',
+    restart_ph: 'Tap anywhere to play again',
+  },
+  tn: {
+    title:      'الغول',
+    boss_name:  '★ الغول اكال الارواح  ★',
+    choose_lang:'اختار لغتك',
+    choose_dev: 'بشنو تلعب؟',
+    btn_en:     'English',
+    btn_tn:     'تونسي',
+    btn_pc:     '🖥  كمبيوتر  (لوحة مفاتيح)',
+    btn_phone:  '📱  تاليفون  (لمس)',
+    start:      'ابدأ  اللعبة',
+    ctrl_hint:  '← → تحرك   W/Space قفز(x2)   Z اطلق!',
+    hp:         'الصحة',
+    soul_lbl:   '✦ الروح',
+    soul_ready: 'الروح حاضرة!  انزل X',
+    phase2:     '⚡ مغشش! ⚡',
+    phase3:     '☠ مغشش يااااسر! ☠',
+    charge:     'اضرب!!',
+    fire_rain:  '☄ مطر النار! ☄',
+    parry:      '✦  باري!  ✦',
+    soul_blast: '✦  روح  الغول!  ✦',
+    sb_float:   'روح الغول!',
+    soul_float: '+روح',
+    win_title:  '✦ صحيت يا باهيي !!!  ✦',
+    win_sub:    'الغول خسر!\روحو ملكك .',
+    lose_title: 'خسرت',
+    lose_sub:   'الغول كلاك...\روحك ملكو بالكل.',
+    restart:    '[  R  ]  العب  مرة  أخرى',
+    restart_ph: 'انزل في أي  بلاصة باش تلعب مرة أخرى',
+  },
+};
+const t = () => T[window.CFG.lang];
+
+// ── Touch button wiring ────────────────────────────────
+function setupTouchButtons() {
+  const map = {
+    'btn-left':  'left',
+    'btn-right': 'right',
+    'btn-jump':  'jump',
+    'btn-shoot': 'shoot',
+    'btn-blast': 'blast',
+  };
+  Object.entries(map).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const on  = (e) => { e.preventDefault(); window.VKEYS[key]=true;  el.classList.add('pressed');    };
+    const off = (e) => { e.preventDefault(); window.VKEYS[key]=false; el.classList.remove('pressed'); };
+    el.addEventListener('touchstart',  on,  { passive:false });
+    el.addEventListener('touchend',    off, { passive:false });
+    el.addEventListener('touchcancel', off, { passive:false });
+    el.addEventListener('mousedown',   on);
+    el.addEventListener('mouseup',     off);
+    el.addEventListener('mouseleave',  off);
+  });
+}
+setupTouchButtons();
+
+// ═══════════════════════════════════════════════════════
+//  MENU SCENE
+// ═══════════════════════════════════════════════════════
+class Menu extends Phaser.Scene {
+  constructor() { super('Menu'); }
+
+  create () {
+    this._step = 'lang'; // 'lang' → 'device' → done
+
+    // Background
+    const bg = this.add.graphics();
+    bg.fillStyle(0x030010); bg.fillRect(0,0,W,H);
+    bg.fillStyle(0x0a001e); bg.fillRect(0,H*0.5,W,H*0.5);
+    bg.fillStyle(0xffffff);
+    for(let i=0;i<130;i++) bg.fillCircle(Math.random()*W,Math.random()*H*.7,Math.random()*1.3+.2);
+    bg.fillStyle(0xffeeaa); bg.fillCircle(700,65,38);
+    bg.fillStyle(0x07000c); bg.fillCircle(718,53,33);
+    const m=[{x:0,y:H},{x:80,y:300},{x:175,y:340},{x:270,y:248},{x:370,y:295},
+             {x:465,y:235},{x:560,y:272},{x:660,y:228},{x:755,y:260},{x:800,y:295},{x:800,y:H}];
+    bg.fillStyle(0x170030); bg.fillPoints(m,true);
+
+    // Title (updated when language is chosen)
+    this._titleTxt = this.add.text(W/2, 70, 'SOUL SNATCHER', {
+      fontFamily:'monospace', fontSize:'42px', color:'#ff4400',
+      stroke:'#000', strokeThickness:7,
+    }).setOrigin(0.5);
+    this._subTxt = this.add.text(W/2, 118, '★  MALPHAS  THE  DEVOURER  ★', {
+      fontFamily:'monospace', fontSize:'13px', color:'#ff8800',
+      stroke:'#000', strokeThickness:3,
+    }).setOrigin(0.5);
+
+    // Separator
+    const sep = this.add.graphics();
+    sep.lineStyle(1,0xff4400,0.4);
+    sep.lineBetween(120,142,680,142);
+
+    // Build dynamic UI container
+    this._container = this.add.container(0,0);
+    this._buildLangStep();
+  }
+
+  _clearContainer () {
+    this._container.removeAll(true);
+  }
+
+  _buildLangStep () {
+    this._clearContainer();
+    // "Choose your language" — shown in both languages since we don't know yet
+    const label = this.add.text(W/2, 195,
+      'Choose your language  /  اختار لغتك', {
+        fontFamily:'monospace', fontSize:'18px', color:'#cceeff',
+        stroke:'#000', strokeThickness:3,
+      }).setOrigin(0.5);
+
+    const btnEn = this._makeBtn(W/2 - 105, 290, '  English  ', () => {
+      window.CFG.lang = 'en';
+      this._titleTxt.setText(T.en.title);
+      this._subTxt.setText(T.en.boss_name);
+      this._step = 'device';
+      this._buildDeviceStep();
+    });
+    const btnTn = this._makeBtn(W/2 + 105, 290, '  تونسي  ', () => {
+      window.CFG.lang = 'tn';
+      this._titleTxt.setText(T.tn.title);
+      this._subTxt.setText(T.tn.boss_name);
+      this._step = 'device';
+      this._buildDeviceStep();
+    });
+
+    this._container.add([label, btnEn, btnTn]);
+  }
+
+  _buildDeviceStep () {
+    this._clearContainer();
+    const tx = t();
+
+    const label = this.add.text(W/2, 195, tx.choose_dev, {
+      fontFamily:'monospace', fontSize:'18px', color:'#cceeff',
+      stroke:'#000', strokeThickness:3,
+    }).setOrigin(0.5);
+
+    const btnPc = this._makeBtn(W/2 - 120, 285, tx.btn_pc, () => {
+      window.CFG.device = 'pc';
+      this._launch();
+    }, 200);
+
+    const btnPh = this._makeBtn(W/2 + 120, 285, tx.btn_phone, () => {
+      window.CFG.device = 'phone';
+      this._launch();
+    }, 200);
+
+    // Back hint
+    const back = this.add.text(W/2, 370, '← back', {
+      fontFamily:'monospace', fontSize:'12px', color:'#556677',
+    }).setOrigin(0.5).setInteractive({ useHandCursor:true });
+    back.on('pointerover', ()=>back.setColor('#aabbcc'));
+    back.on('pointerout',  ()=>back.setColor('#556677'));
+    back.on('pointerdown', ()=>this._buildLangStep());
+
+    this._container.add([label, btnPc, btnPh, back]);
+  }
+
+  _makeBtn (cx, cy, label, cb, w=155) {
+    const h = 52;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x1a0030); bg.fillRoundedRect(cx-w/2, cy-h/2, w, h, 10);
+    bg.lineStyle(2.5, 0xff4400, 0.8); bg.strokeRoundedRect(cx-w/2, cy-h/2, w, h, 10);
+
+    const txt = this.add.text(cx, cy, label, {
+      fontFamily:'monospace', fontSize:'14px', color:'#ffcc88',
+      stroke:'#000', strokeThickness:2,
+    }).setOrigin(0.5);
+
+    const zone = this.add.zone(cx, cy, w, h).setInteractive({ useHandCursor:true });
+    zone.on('pointerover', ()=>{ bg.clear(); bg.fillStyle(0x3a0060); bg.fillRoundedRect(cx-w/2,cy-h/2,w,h,10); bg.lineStyle(2.5,0xff8800,1); bg.strokeRoundedRect(cx-w/2,cy-h/2,w,h,10); txt.setColor('#ffffff'); });
+    zone.on('pointerout',  ()=>{ bg.clear(); bg.fillStyle(0x1a0030); bg.fillRoundedRect(cx-w/2,cy-h/2,w,h,10); bg.lineStyle(2.5,0xff4400,0.8); bg.strokeRoundedRect(cx-w/2,cy-h/2,w,h,10); txt.setColor('#ffcc88'); });
+    zone.on('pointerdown', cb);
+
+    return this.add.container(0,0,[bg,txt,zone]);
+  }
+
+  _launch () {
+    // Show touch UI if phone
+    if (window.CFG.device === 'phone') {
+      document.getElementById('touch-ui').style.display = 'block';
+    }
+    this.scene.start('Game');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+//  GAME SCENE
+// ═══════════════════════════════════════════════════════
+class Game extends Phaser.Scene {
+  constructor() { super('Game'); }
+
+  create () {
+    const tx = t();
+
+    this.state            = 'playing';
+    this.playerHP         = 100;
+    this.bossHP           = 400;
+    this.soulMeter        = 0;
+    this.bossPhase        = 1;
+    this.bossInvincible   = false;
+    this.playerIframes    = 0;
+    this.jumpCount        = 0;
+    this.shootCD          = 0;
+    this.bossAITimer      = 2.8;
+    this.bossFlash        = 0;
+    this.skyFireTimer     = 5;
+    this.skyFireActive    = false;
+    this.skyFireWaveTimer = 0;
+    this.particles        = [];
+    this.facing           = 1;
+    this.prevJump         = false;
+    this.bossFaceLeft     = false;
+    // Virtual shoot/blast edge-detection
+    this._prevShoot       = false;
+    this._prevBlast       = false;
+
+    this._makeTextures();
+    this._buildBG();
+    this._buildPlatforms();
+
+    // Player
+    this.player = this.physics.add.sprite(110, H-95, 'player_tex');
+    this.player.setCollideWorldBounds(true).setDragX(1100).setMaxVelocity(255,950).setDepth(5);
+
+    // Boss
+    this.boss = this.physics.add.sprite(630, H-100, 'boss_box');
+    this.boss.setCollideWorldBounds(true).setDragX(500).setMaxVelocity(450,950).setDepth(3).setAlpha(0);
+    this.boss.body.setSize(BOSS_W, BOSS_H);
+
+    // Bullet groups
+    this.eBullets  = this.physics.add.group();
+    this.pBullets  = this.physics.add.group();
+    this.plBullets = this.physics.add.group();
+
+    // Colliders / overlaps
+    this.physics.add.collider(this.player, this.grounds);
+    this.physics.add.collider(this.boss,   this.grounds);
+    this.physics.add.overlap(this.player, this.boss,     ()=>this._bossContact(),        null, this);
+    this.physics.add.overlap(this.player, this.eBullets, (_p,b)=>this._hitPlayer(b,12),  null, this);
+    this.physics.add.overlap(this.player, this.pBullets, (_p,b)=>this._tryParry(b),      null, this);
+    this.physics.add.overlap(this.boss,   this.plBullets,(_b,b)=>this._hitBoss(b,10),    null, this);
+
+    // Keyboard (always set up; unused on phone)
+    this.keys = this.input.keyboard.addKeys({
+      left:'LEFT', right:'RIGHT', up:'UP', space:'SPACE',
+      a:'A', d:'D', w:'W', z:'Z', x:'X', r:'R',
+    });
+
+    // Tap-to-restart for phone
+    if (window.CFG.device === 'phone') {
+      this.input.on('pointerdown', ()=>{
+        if (this.state !== 'playing') this._doRestart();
+      });
+    }
+
+    // Graphics
+    this.bossGfx = this.add.graphics().setDepth(4);
+    this.partGfx = this.add.graphics().setDepth(9);
+    this.uiGfx   = this.add.graphics().setDepth(15);
+
+    // UI text
+    const TS = (s,c) => ({ fontFamily:'monospace', fontSize:s+'px',
+                            color:c||'#fff', stroke:'#000', strokeThickness:3 });
+
+    this.add.text(50, 11, tx.hp,       TS(11,'#cceeff')).setDepth(16);
+    this.add.text(50, 31, tx.soul_lbl, TS(11,'#ff88ff')).setDepth(16);
+    this.add.text(W/2, H-43, tx.boss_name, TS(11,'#ff6600')).setOrigin(0.5).setDepth(16);
+
+    // Controls hint only for PC
+    if (window.CFG.device === 'pc') {
+      this.add.text(W/2, H-10, tx.ctrl_hint,
+        { fontFamily:'monospace', fontSize:'9px', color:'#334455' })
+        .setOrigin(0.5,1).setDepth(16);
+    }
+
+    this.phaseMsg = this.add.text(W/2, 72, '', TS(22,'#ffaa00')).setOrigin(0.5).setDepth(16);
+    this.soulTxt  = this.add.text(240, 31, tx.soul_ready, TS(9,'#ff88ff'))
+                       .setOrigin(0,0.5).setDepth(16).setVisible(false);
+
+    // End overlay
+    this.overlay = this.add.rectangle(W/2,H/2,W,H,0x000000,0).setDepth(20);
+    this.goTitle = this.add.text(W/2,H/2-35,'',TS(48,'#ff2200')).setOrigin(0.5).setDepth(21);
+    this.goSub   = this.add.text(W/2,H/2+42,'',
+      { fontFamily:'monospace',fontSize:'15px',color:'#fff',
+        stroke:'#000',strokeThickness:3,align:'center' }).setOrigin(0.5).setDepth(21);
+    this.goR = this.add.text(W/2,H/2+105,'',
+      { fontFamily:'monospace',fontSize:'13px',color:'#aaaaff' }).setOrigin(0.5).setDepth(21);
+
+    // Intro
+    const intro = this.add.text(W/2,H/2, tx.boss_name,
+      TS(22,'#ff4400')).setOrigin(0.5).setDepth(22).setAlpha(0);
+    this.tweens.add({ targets:intro, alpha:1, duration:500,
+      hold:1400, yoyo:true, onComplete:()=>intro.destroy() });
+  }
+
+  // ─── Textures ──────────────────────────────────────────
+  _makeTextures () {
+    const g = this.add.graphics();
+
+    g.clear(); g.fillStyle(0x2255dd); g.fillRect(4,14,16,16);
+    g.fillStyle(0xffcc88); g.fillCircle(12,9,8);
+    g.fillStyle(0x1133aa); g.fillRect(2,1,20,5); g.fillRect(6,-3,12,5);
+    g.fillStyle(0x000000); g.fillCircle(9,9,2); g.fillCircle(15,9,2);
+    g.fillStyle(0xff6666); g.fillRect(9,13,6,2);
+    g.fillStyle(0x1133aa); g.fillRect(4,28,7,4); g.fillRect(13,28,7,4);
+    g.fillStyle(0xcc4400); g.fillRect(2,28,5,4); g.fillRect(17,28,5,4);
+    g.generateTexture('player_tex',24,32);
+
+    g.clear(); g.fillStyle(0xff0000,1); g.fillRect(0,0,BOSS_W,BOSS_H);
+    g.generateTexture('boss_box',BOSS_W,BOSS_H);
+
+    g.clear(); g.fillStyle(0xff6600); g.fillCircle(6,6,6);
+    g.fillStyle(0xffcc00,0.8); g.fillCircle(4,4,3);
+    g.generateTexture('bul_e',12,12);
+
+    g.clear(); g.fillStyle(0xff44ff); g.fillCircle(7,7,7);
+    g.fillStyle(0xffffff,0.6); g.fillCircle(5,5,3);
+    g.generateTexture('bul_p',14,14);
+
+    g.clear(); g.fillStyle(0x44ffee); g.fillCircle(4,4,4);
+    g.fillStyle(0xffffff,0.85); g.fillCircle(3,3,1.5);
+    g.generateTexture('bul_pl',8,8);
+
+    g.destroy();
+  }
+
+  _buildBG () {
+    const g = this.add.graphics().setDepth(0);
+    g.fillStyle(0x030010); g.fillRect(0,0,W,H*0.5);
+    g.fillStyle(0x0a001e); g.fillRect(0,H*0.5,W,H*0.5);
+    g.fillStyle(0xffffff);
+    for(let i=0;i<140;i++) g.fillCircle(Math.random()*W,Math.random()*H*.65,Math.random()*1.3+.2);
+    g.fillStyle(0xffeeaa); g.fillCircle(700,65,40);
+    g.fillStyle(0x07000c); g.fillCircle(718,53,35);
+    const m1=[{x:0,y:H},{x:80,y:300},{x:175,y:340},{x:270,y:248},{x:370,y:295},
+              {x:465,y:235},{x:560,y:272},{x:660,y:228},{x:755,y:260},{x:800,y:295},{x:800,y:H}];
+    g.fillStyle(0x170030); g.fillPoints(m1,true);
+    const m2=[{x:0,y:H},{x:65,y:340},{x:155,y:365},{x:245,y:318},
+              {x:335,y:352},{x:425,y:312},{x:515,y:348},{x:605,y:308},
+              {x:695,y:342},{x:785,y:322},{x:800,y:348},{x:800,y:H}];
+    g.fillStyle(0x0e001f); g.fillPoints(m2,true);
+    g.fillStyle(0x182230); g.fillRect(0,H-15,W,15);
+    g.fillStyle(0x2a3f54); g.fillRect(0,H-15,W,4);
+  }
+
+  _buildPlatforms () {
+    const pg = this.add.graphics().setDepth(1);
+    this.grounds = this.physics.add.staticGroup();
+    const defs = [
+      [0,   H-15, W,   30],
+      [50,  H-100,115, 16],
+      [350, H-155,115, 16],
+      [640, H-100,115, 16],
+      [155, H-225, 95, 16],
+      [555, H-225, 95, 16],
+    ];
+    defs.forEach(([x,y,w,h]) => {
+      pg.fillStyle(0x1d3044); pg.fillRect(x,y,w,h);
+      pg.fillStyle(0x3a6a88); pg.fillRect(x,y,w,4);
+      pg.fillStyle(0x111e2e); pg.fillRect(x,y+h-3,w,3);
+      pg.lineStyle(1,0x2a4a60,0.45);
+      for(let i=0;i<w;i+=22) pg.lineBetween(x+i,y,x+i,y+h);
+      const bimg = this.add.image(x+w/2,y+h/2,'player_tex').setVisible(false);
+      this.physics.add.existing(bimg,true);
+      bimg.body.setSize(w,h);
+      this.grounds.add(bimg);
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════
+  update (_t, delta) {
+    const dt = delta/1000;
+    if (this.state !== 'playing') {
+      // PC restart
+      if (window.CFG.device === 'pc' && Phaser.Input.Keyboard.JustDown(this.keys.r))
+        this._doRestart();
+      return;
+    }
+    this._playerUpdate(dt);
+    this._bossUpdate(dt);
+    this._drawBoss();
+    this._tickBullets(dt);
+    this._tickParticles(dt);
+    this._drawUI();
+  }
+
+  _doRestart () {
+    // Hide touch UI then restart
+    window.VKEYS = { left:false,right:false,jump:false,shoot:false,blast:false };
+    this.scene.start('Menu');
+    document.getElementById('touch-ui').style.display='none';
+  }
+
+  // ─── Input helpers ─────────────────────────────────────
+  _isLeft ()   { return this.keys.left.isDown  || this.keys.a.isDown || window.VKEYS.left; }
+  _isRight ()  { return this.keys.right.isDown || this.keys.d.isDown || window.VKEYS.right; }
+  _isJump ()   { return this.keys.up.isDown || this.keys.space.isDown || this.keys.w.isDown || window.VKEYS.jump; }
+  _isShoot ()  { return this.keys.z.isDown || window.VKEYS.shoot; }
+  _isBlast ()  { return this.keys.x.isDown || window.VKEYS.blast; }
+
+  // ─── Player update ─────────────────────────────────────
+  _playerUpdate (dt) {
+    const body  = this.player.body;
+    const onGnd = body.blocked.down;
+    if (onGnd) this.jumpCount = 0;
+
+    if      (this._isLeft())  { body.setAccelerationX(-1600); this.facing=-1; }
+    else if (this._isRight()) { body.setAccelerationX( 1600); this.facing= 1; }
+    else                        body.setAccelerationX(0);
+    this.player.setFlipX(this.facing===-1);
+
+    // Jump / double-jump
+    const jumpNow = this._isJump();
+    if (jumpNow && !this.prevJump && this.jumpCount < 2) {
+      body.setVelocityY(-570);
+      this.jumpCount++;
+      this._burst(this.player.x, this.player.y+15, 0x4488ff, 5, 75);
+    }
+    this.prevJump = jumpNow;
+
+    // Shoot (edge detect for both keyboard hold and touch)
+    this.shootCD = Math.max(0, this.shootCD-dt);
+    const shootNow = this._isShoot();
+    if (shootNow && this.shootCD===0) {
+      this.shootCD = 0.20;
+      this._firePlayerBullet();
+    }
+
+    // Soul Blast (edge detect)
+    const blastNow = this._isBlast();
+    if (blastNow && !this._prevBlast && this.soulMeter>=100) this._soulBlast();
+    this._prevBlast = blastNow;
+
+    // I-frame flicker
+    if (this.playerIframes>0) {
+      this.playerIframes-=dt;
+      this.player.setAlpha(Math.floor(Date.now()/60)%2===0 ? 0.22 : 1);
+    } else {
+      this.player.setAlpha(1);
+    }
+  }
+
+  _firePlayerBullet () {
+    const b = this.physics.add.image(this.player.x+this.facing*15, this.player.y-2,'bul_pl');
+    b.body.allowGravity=false;
+    b.setVelocity(this.facing*560,0);
+    b._life=1.4;
+    this.plBullets.add(b);
+  }
+
+  // ─── Boss update ───────────────────────────────────────
+  _bossUpdate (dt) {
+    const bx=this.boss.x, by=this.boss.y;
+    const px=this.player.x, py=this.player.y;
+    const dx=px-bx, dy=py-by;
+
+    const spd  = [400,580,760][this.bossPhase-1];
+    this.boss.body.setAccelerationX(Math.sign(dx)*spd);
+    const maxVX= [240,340,450][this.bossPhase-1];
+    this.boss.body.setMaxVelocity(maxVX,950);
+
+    this.bossFaceLeft = dx<0;
+
+    const onGnd = this.boss.body.blocked.down;
+    const jumpCh= [0.017,0.030,0.050][this.bossPhase-1];
+    if (onGnd && dy<-80 && Math.random()<jumpCh) this.boss.body.setVelocityY(-600);
+
+    this.bossAITimer-=dt;
+    if (this.bossAITimer<=0 && !this.bossInvincible) {
+      this._launchAttack();
+      const base=[2.6,1.9,1.25][this.bossPhase-1];
+      this.bossAITimer=base+Math.random()*base*0.5;
+    }
+
+    this.bossFlash=Math.max(0,this.bossFlash-dt);
+
+    // Sky fireballs: 5 sec ON → 5 sec REST
+    if (this.bossPhase>=2) {
+      this.skyFireTimer-=dt;
+      if (this.skyFireActive) {
+        if (this.skyFireTimer<=0) {
+          this._dropSkyFire();
+          this.skyFireTimer=0.9;
+          this.skyFireWaveTimer-=0.9;
+          if (this.skyFireWaveTimer<=0) {
+            this.skyFireActive=false;
+            this.skyFireTimer=5;
+          }
+        }
+      } else {
+        if (this.skyFireTimer<=0) {
+          this.skyFireActive=true;
+          this.skyFireWaveTimer=5;
+          this.skyFireTimer=0.9;
+          this._showMsg(t().fire_rain,'#ff6600',1200);
+        }
+      }
+    }
+  }
+
+  _dropSkyFire () {
+    const count = this.bossPhase===3 ? 2 : 1;
+    for (let c=0;c<count;c++) {
+      const tx = this.player.x + Phaser.Math.Between(-80,80);
+      const sx = Phaser.Math.Clamp(tx,20,W-20);
+      const warn = this.add.graphics().setDepth(8);
+      warn.fillStyle(0xff4400,0.8); warn.fillCircle(sx,8,7);
+      this.time.delayedCall(260,()=>warn.destroy());
+      this.time.delayedCall(260,()=>{
+        if (this.state!=='playing') return;
+        const fb = this.physics.add.image(sx,-18,'bul_e');
+        fb.setScale(2.2);
+        fb.body.allowGravity=false;
+        fb.body.setVelocityY(this.bossPhase===3?480:340);
+        fb._life=4;
+        this.eBullets.add(fb);
+        this.tweens.add({ targets:fb, scaleX:2.8,scaleY:2.8, yoyo:true, repeat:-1, duration:110 });
+      });
+    }
+  }
+
+  _bossContact () {
+    if (this.playerIframes>0) return;
+    this._hitPlayer(null,14);
+    const kx=Math.sign(this.player.x-this.boss.x)||1;
+    this.player.body.setVelocityX(kx*400);
+    this.player.body.setVelocityY(-300);
+  }
+
+  _hitPlayer (bullet,dmg) {
+    if (this.playerIframes>0) return;
+    if (bullet?.active) bullet.destroy();
+    this.playerHP=Math.max(0,this.playerHP-dmg);
+    this.playerIframes=1.4;
+    this.cameras.main.shake(120,0.016);
+    this._burst(this.player.x,this.player.y,0xff2200,8,100);
+    this._floatTxt(this.player.x,this.player.y-24,`-${dmg}`,'#ff5555');
+    if (this.playerHP<=0) this._end(false);
+  }
+
+  _tryParry (bullet) {
+    if (this.playerIframes>0) return;
+    const inAir = !this.player.body.blocked.down || this.player.body.velocity.y<0;
+    if (inAir) {
+      bullet.destroy();
+      this.soulMeter=Math.min(100,this.soulMeter+35);
+      this.playerIframes=0.22;
+      this.player.body.setVelocityY(-440);
+      this.jumpCount=1;
+      this.cameras.main.shake(75,0.009);
+      this._burst(this.player.x,this.player.y,0xff88ff,14,140);
+      this._showMsg(t().parry,'#ff88ff',600);
+      this._floatTxt(this.player.x,this.player.y-26,t().soul_float,'#ff88ff');
+    } else {
+      this._hitPlayer(bullet,12);
+    }
+  }
+
+  _hitBoss (bullet,dmg) {
+    if (this.bossInvincible){ if(bullet?.active) bullet.destroy(); return; }
+    if (bullet?.active) bullet.destroy();
+    this.bossHP=Math.max(0,this.bossHP-dmg);
+    this.bossFlash=0.12;
+    this._floatTxt(this.boss.x,this.boss.y-65,`-${dmg}`,'#ffff44');
+    const ratio=this.bossHP/400;
+    const newPh=ratio>0.66?1:ratio>0.33?2:3;
+    if (newPh>this.bossPhase) this._phaseUp(newPh);
+    if (this.bossHP<=0) this._end(true);
+  }
+
+  _phaseUp (ph) {
+    this.bossPhase=ph; this.bossInvincible=true;
+    this.skyFireTimer=5; this.skyFireActive=false; this.skyFireWaveTimer=0;
+    this.cameras.main.shake(700,0.045);
+    const msgs=['',[t().phase2],[t().phase3]];
+    this._showMsg(msgs[ph-1],ph===3?'#ff0000':'#ffaa00',2200);
+    const fr=this.add.rectangle(W/2,H/2,W,H,ph===3?0xff0000:0xff6600,0.55).setDepth(25);
+    this.tweens.add({ targets:fr, alpha:0, duration:1600,
+      onComplete:()=>{ fr.destroy(); this.bossInvincible=false; } });
+    for(let i=0;i<22;i++)
+      this.time.delayedCall(i*42,()=>
+        this._burst(this.boss.x+Phaser.Math.Between(-55,55),
+                    this.boss.y+Phaser.Math.Between(-55,55),
+                    [0xff4400,0xff8800,0xff0000][ph-1],3,175));
+  }
+
+  _launchAttack () {
+    const pools={
+      1:['spread3','aimed','bounce','pink','aimed'],
+      2:['spread5','aimed','rain','bounce','pink','rapid','pink'],
+      3:['spread7','spread5','aimed','rain','rapid','pink','charge','pink','rapid'],
+    };
+    const pool=pools[this.bossPhase];
+    this._doAttack(pool[Math.floor(Math.random()*pool.length)]);
+  }
+
+  _doAttack (name) {
+    const bx=this.boss.x, by=this.boss.y;
+    const ang=Math.atan2(this.player.y-by,this.player.x-bx);
+    const eb=(vx,vy,gravity=false,bounce=false)=>{
+      const b=this.physics.add.image(bx,by,'bul_e');
+      b.body.allowGravity=gravity;
+      if(bounce){b.body.setBounce(0.75);b.body.setCollideWorldBounds(true);}
+      b.setVelocity(vx,vy); b._life=4.5; this.eBullets.add(b); return b;
+    };
+    switch(name){
+      case 'spread3': this._spread(3,195,ang,bx,by); break;
+      case 'spread5': this._spread(5,215,ang,bx,by); break;
+      case 'spread7': this._spread(7,240,ang,bx,by); break;
+      case 'aimed':   eb(Math.cos(ang)*300,Math.sin(ang)*300); break;
+      case 'bounce':  eb((Math.random()>0.5?285:-285),-370,true,true); break;
+      case 'pink': {
+        const pb=this.physics.add.image(bx,by,'bul_p');
+        pb.body.allowGravity=false;
+        pb.setVelocity(Math.cos(ang)*165,Math.sin(ang)*165);
+        pb._life=5.5; this.pBullets.add(pb);
+        this.tweens.add({targets:pb,scaleX:1.5,scaleY:1.5,yoyo:true,repeat:-1,duration:220,ease:'Sine.easeInOut'});
+        break;
+      }
+      case 'rain':
+        for(let i=0;i<8;i++) this.time.delayedCall(i*110,()=>{
+          const b=this.physics.add.image(Phaser.Math.Between(40,W-40),-15,'bul_e');
+          b.body.allowGravity=true; b.body.setVelocityY(60); b._life=5; this.eBullets.add(b);
+        }); break;
+      case 'rapid':
+        for(let i=0;i<7;i++) this.time.delayedCall(i*90,()=>{
+          if(!this.boss.active) return;
+          const a2=Math.atan2(this.player.y-this.boss.y,this.player.x-this.boss.x);
+          eb(Math.cos(a2)*320,Math.sin(a2)*320);
+        }); break;
+      case 'charge':
+        this.boss.body.setVelocityX(Math.sign(this.player.x-bx)*860);
+        this.cameras.main.shake(200,0.012);
+        this._showMsg(t().charge,'#ff8800',650); break;
+    }
+  }
+
+  _spread (n,spd,baseAng,bx,by) {
+    const arc=Math.PI/2.4;
+    for(let i=0;i<n;i++){
+      const a=n===1?baseAng:baseAng-arc/2+(i/(n-1))*arc;
+      const b=this.physics.add.image(bx,by,'bul_e');
+      b.body.allowGravity=false; b.setVelocity(Math.cos(a)*spd,Math.sin(a)*spd);
+      b._life=3.8; this.eBullets.add(b);
+    }
+  }
+
+  _soulBlast () {
+    this.soulMeter=0;
+    this.cameras.main.shake(400,0.025);
+    const y0=this.player.y;
+    const lg=this.add.graphics().setDepth(11);
+    let tick=0;
+    this.time.addEvent({delay:16,repeat:30,callback:()=>{
+      tick++; const a=1-tick/30; lg.clear();
+      lg.fillStyle(0xffffff,a*0.18); lg.fillRect(0,y0-22,W,44);
+      lg.fillStyle(0xff88ff,a);       lg.fillRect(0,y0-7, W,14);
+      lg.fillStyle(0xffffff,a);       lg.fillRect(0,y0-2, W, 4);
+    },onComplete:()=>lg.destroy()});
+    if (Math.abs(this.boss.y-y0)<70){ this._hitBoss(null,90); this._burst(this.boss.x,this.boss.y,0xff44ff,18,155); }
+    this._showMsg(t().soul_blast,'#ff88ff',950);
+    this._floatTxt(this.player.x,this.player.y-26,t().sb_float,'#ff88ff');
+  }
+
+  _drawBoss () {
+    const g=this.bossGfx; g.clear();
+    const bx=this.boss.x, by=this.boss.y;
+    const bob=Math.sin(Date.now()*0.0026)*4;
+    const ph=this.bossPhase, fl=this.bossFlash>0;
+    const pal=[[0x991100,0xcc3300,0xff5500],[0x885500,0xcc8800,0xffcc00],[0x550000,0x990000,0xff0000]][ph-1];
+    const C=c=>fl?0xffffff:c;
+    g.fillStyle(0x000000,0.22); g.fillEllipse(bx,by+BOSS_H/2+5,72,12);
+    g.fillStyle(C(pal[0])); g.fillTriangle(bx-43,by+BOSS_H/2+bob,bx+43,by+BOSS_H/2+bob,bx,by-24+bob);
+    g.fillStyle(C(pal[1])); g.fillTriangle(bx-28,by+BOSS_H/2+bob,bx+28,by+BOSS_H/2+bob,bx,by-16+bob);
+    g.fillStyle(C(pal[1])); g.fillRect(bx-22,by-18+bob,44,40);
+    g.fillStyle(C(pal[1])); g.fillCircle(bx,by-33+bob,23);
+    g.fillStyle(C(pal[2]));
+    [-20,-10,0,10,20].forEach((ox,i)=>{
+      const sh=13-Math.abs(i-2)*2;
+      g.fillTriangle(bx+ox-5,by-53+bob,bx+ox+5,by-53+bob,bx+ox,by-53-sh+bob);
+    });
+    g.fillStyle(fl?0x000000:0xffff44);
+    g.fillCircle(bx-9,by-34+bob,7); g.fillCircle(bx+9,by-34+bob,7);
+    const ep=this.bossFaceLeft?-2.5:2.5;
+    g.fillStyle(0x000000);
+    g.fillCircle(bx-9+ep,by-34+bob,3.5); g.fillCircle(bx+9+ep,by-34+bob,3.5);
+    g.lineStyle(3.5,fl?0x000000:0xff0000);
+    g.lineBetween(bx-17,by-45+bob,bx-6,by-42+bob);
+    g.lineBetween(bx+17,by-45+bob,bx+6,by-42+bob);
+    g.fillStyle(fl?0xffffff:0x000000);
+    if(ph===1){ g.fillRect(bx-9,by-21+bob,18,6); }
+    else if(ph===2){
+      g.fillRect(bx-13,by-22+bob,26,12);
+      g.fillStyle(fl?0x000000:0xffffff);
+      for(let i=0;i<4;i++) g.fillTriangle(bx-11+i*7,by-22+bob,bx-7+i*7,by-22+bob,bx-9+i*7,by-14+bob);
+    } else {
+      g.fillEllipse(bx,by-17+bob,34,17);
+      g.fillStyle(fl?0x000000:0xffffff);
+      for(let i=0;i<5;i++){
+        g.fillTriangle(bx-14+i*7,by-24+bob,bx-11+i*7,by-24+bob,bx-12.5+i*7,by-16+bob);
+        g.fillTriangle(bx-14+i*7,by-10+bob,bx-11+i*7,by-10+bob,bx-12.5+i*7,by-18+bob);
+      }
+    }
+    if(ph>=2){
+      g.lineStyle(2.5,fl?0xffffff:0xffff00,0.9);
+      [[-36,-42],[36,42]].forEach(([ox,ex])=>{
+        g.lineBetween(bx+ox,by-18+bob,bx+ex,by-4+bob);
+        g.lineBetween(bx+ex,by-4+bob,bx+ox*0.4,by+4+bob);
+        g.lineBetween(bx+ox*0.4,by+4+bob,bx+ex,by+16+bob);
+      });
+    }
+    if(ph===3){
+      const aura=(Math.sin(Date.now()*0.007)+1)*0.09+0.03;
+      g.fillStyle(0xff0000,aura); g.fillCircle(bx,by,72+Math.sin(Date.now()*0.006)*12);
+    }
+  }
+
+  _tickBullets (dt) {
+    [this.eBullets,this.pBullets,this.plBullets].forEach(grp=>{
+      grp.getChildren().slice().forEach(b=>{
+        if(!b.active) return;
+        b._life-=dt;
+        if(b._life<=0||b.x<-60||b.x>W+60||b.y>H+60||b.y<-80) b.destroy();
+      });
+    });
+    this.pBullets.getChildren().forEach(b=>{
+      if(!b.active) return;
+      const v=Math.round(80+((Math.sin(Date.now()*0.015)+1)*0.5)*130);
+      b.setTint((0xff<<16)|(v<<8)|0xff);
+    });
+  }
+
+  _tickParticles (dt) {
+    const g=this.partGfx; g.clear();
+    this.particles=this.particles.filter(p=>p.life>0);
+    this.particles.forEach(p=>{
+      p.x+=p.vx*dt; p.y+=p.vy*dt; p.vy+=400*dt; p.life-=dt;
+      const a=Math.max(0,p.life/p.max);
+      g.fillStyle(p.c,a); g.fillCircle(p.x,p.y,p.r*a);
+    });
+  }
+
+  _drawUI () {
+    const g=this.uiGfx; g.clear();
+    const hp=this.playerHP/100, soul=this.soulMeter/100, boss=this.bossHP/400;
+
+    // Player HP
+    const hc=hp>0.5?0x22ff66:hp>0.25?0xffaa00:0xff2200;
+    g.fillStyle(0x000000,0.7); g.fillRoundedRect(50,5,206,22,4);
+    g.fillStyle(0x440000);     g.fillRoundedRect(51,6,204,20,3);
+    if(hp>0){g.fillStyle(hc);  g.fillRoundedRect(51,6,204*hp,20,3);}
+    g.lineStyle(1.5,0xffffff,0.3); g.strokeRoundedRect(50,5,206,22,4);
+
+    // Soul meter
+    const sc=this.soulMeter>=100?0xffaaff:0xcc44cc;
+    g.fillStyle(0x000000,0.7); g.fillRoundedRect(50,30,206,16,3);
+    g.fillStyle(0x220033);     g.fillRoundedRect(51,31,204,14,2);
+    if(soul>0){g.fillStyle(sc);g.fillRoundedRect(51,31,204*soul,14,2);}
+    if(this.soulMeter>=100){
+      g.fillStyle(0xffffff,(Math.sin(Date.now()*0.022)+1)*0.08);
+      g.fillRoundedRect(51,31,204,14,2);
+    }
+    g.lineStyle(1.5,0xcc44cc,0.5); g.strokeRoundedRect(50,30,206,16,3);
+
+    // Boss HP
+    const bW=420,bX=W/2-210,bY=H-28;
+    const bc=[0xff4400,0xff8800,0xff0000][this.bossPhase-1];
+    g.fillStyle(0x000000,0.7); g.fillRoundedRect(bX-2,bY-2,bW+4,22,4);
+    g.fillStyle(0x440000);     g.fillRoundedRect(bX,bY,bW,18,3);
+    if(boss>0){g.fillStyle(bc);g.fillRoundedRect(bX,bY,bW*boss,18,3);}
+    g.lineStyle(1.5,bc,0.6);   g.strokeRoundedRect(bX-2,bY-2,bW+4,22,4);
+
+    for(let i=0;i<3;i++){
+      const sx=bX+bW+18+i*22,sy=bY+9;
+      g.fillStyle(i<this.bossPhase?[0xffaa00,0xff6600,0xff0000][i]:0x222222);
+      g.fillTriangle(sx,sy-9,sx+7,sy,sx,sy+9);
+      g.fillTriangle(sx,sy-9,sx-7,sy,sx,sy+9);
+    }
+    this.soulTxt.setVisible(this.soulMeter>=100);
+  }
+
+  _burst (x,y,c,n,spd) {
+    for(let i=0;i<n;i++){
+      const a=Math.random()*Math.PI*2, s=Math.random()*spd;
+      this.particles.push({ x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s-spd*0.28,
+                             c, r:2+Math.random()*3, life:0.35+Math.random()*0.35, max:0.7 });
+    }
+  }
+
+  _floatTxt (x,y,text,color) {
+    const t=this.add.text(x,y,text,{fontFamily:'monospace',fontSize:'14px',
+      color,stroke:'#000',strokeThickness:2}).setOrigin(0.5).setDepth(17);
+    this.tweens.add({targets:t,y:y-55,alpha:0,duration:750,onComplete:()=>t.destroy()});
+  }
+
+  _showMsg (text,color,dur) {
+    this.phaseMsg.setText(text).setColor(color);
+    this.time.delayedCall(dur,()=>{ if(this.phaseMsg.text===text) this.phaseMsg.setText(''); });
+  }
+
+  _end (won) {
+    this.state=won?'won':'dead';
+    this.overlay.setAlpha(0.82);
+    const tx=t();
+    if(won){
+      this.goTitle.setText(tx.win_title).setColor('#ff88ff');
+      this.goSub.setText(tx.win_sub);
+      this.cameras.main.shake(1100,0.06);
+      for(let i=0;i<55;i++)
+        this.time.delayedCall(i*38,()=>
+          this._burst(Phaser.Math.Between(0,W),Phaser.Math.Between(0,H),0xff88ff,5,220));
+    } else {
+      this.goTitle.setText(tx.lose_title).setColor('#ff2200');
+      this.goSub.setText(tx.lose_sub);
+    }
+    this.goR.setText(window.CFG.device==='phone' ? tx.restart_ph : tx.restart);
+  }
+}
+
+// ── Boot ──────────────────────────────────────────────
+new Phaser.Game({
+  type           : Phaser.AUTO,
+  width          : W,
+  height         : H,
+  backgroundColor: '#030010',
+  scale: {
+    mode       : Phaser.Scale.FIT,
+    autoCenter : Phaser.Scale.CENTER_BOTH,
+  },
+  physics: {
+    default:'arcade',
+    arcade :{ gravity:{y:900}, debug:false },
+  },
+  scene: [Menu, Game],
+});
+</script>
+</body>
+</html>
