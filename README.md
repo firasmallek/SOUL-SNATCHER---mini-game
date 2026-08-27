@@ -201,13 +201,13 @@ Because Soul Snatcher is contained in a single HTML file, there is no installati
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR-USERNAME/YOUR-REPOSITORY.git
+git clone https://github.com/firasmallek/SOUL-SNATCHER---mini-game.git
 ```
 
 ### 2. Open the project
 
 ```text
-cd Soul-Snatcher
+cd SOUL-SNATCHER---mini-game
 ```
 
 ### 3. Launch the game
