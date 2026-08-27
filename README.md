@@ -271,5 +271,3 @@ https://github.com/user-attachments/assets/1480f6a4-8c85-420f-8e7f-e1df9be8838f
 ## ⭐ Support
 
 If you enjoyed **Soul Snatcher**, consider giving the repository a ⭐ on GitHub!
-
-> **Dodge. Parry. Charge. Destroy. 👹⚡**
