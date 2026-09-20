@@ -4,7 +4,7 @@
 
 Face a relentless demon that chases you, fires bullet spreads, and rains fireballs when enraged. **Parry pink bullets to charge your Soul Energy, then unleash the screen-wide Soul Laser.**
 
-🌍 Fully playable in **English & Tunisian Arabic**.                
+🌍 Fully playable in **English & Tunisian Arabic**.       
 
 ---
 
